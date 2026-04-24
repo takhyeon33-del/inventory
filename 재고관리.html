@@ -729,21 +729,35 @@ function applyTx(t,sI,fI){
 function buildAt(uptoDate){
   const sorted=[...cache.transactions].filter(t=>t.date&&t.date<=uptoDate).sort((a,b)=>a.date.localeCompare(b.date));
   const sI={},fI={};
+
+  // ── 자사 창고: 최신 스냅샷 기준으로 초기화 ──
   const snaps=sorted.filter(t=>t.type==='snapshot');
   if(snaps.length){
     const latD=[...new Set(snaps.map(t=>t.date))].sort().pop();
     snaps.filter(t=>t.date===latD).forEach(t=>{const k=kk(t);if(!sI[k])sI[k]=baseObj(t);sI[k].qty+=t.qty;});
-    sorted.filter(t=>t.date>=latD&&t.type!=='snapshot'&&t.type!=='freeze-set').forEach(t=>applyTx(t,sI,fI));
+    // 스냅샷 이후 자사 관련 트랜잭션 반영 (in/out 제외, freeze-set 제외)
+    sorted.filter(t=>t.date>=latD&&t.type!=='snapshot'&&t.type!=='freeze-set'&&t.type!=='in'&&t.type!=='out')
+          .forEach(t=>applyTx(t,sI,fI));
   } else {
-    sorted.filter(t=>t.type!=='snapshot'&&t.type!=='freeze-set').forEach(t=>applyTx(t,sI,fI));
+    sorted.filter(t=>t.type!=='snapshot'&&t.type!=='freeze-set'&&t.type!=='in'&&t.type!=='out')
+          .forEach(t=>applyTx(t,sI,fI));
   }
+
+  // ── 천일냉동: 가장 최근 freeze-set 기준으로 초기화 후 이후 트랜잭션 반영 ──
   const frzSets=sorted.filter(t=>t.type==='freeze-set');
   if(frzSets.length){
+    // 제품별 최신 freeze-set만 사용
     const latest={};
     frzSets.forEach(t=>{const k=kk(t);if(!latest[k]||t.date>=latest[k].date)latest[k]=t;});
     Object.values(latest).forEach(t=>{fI[kk(t)]={...baseObj(t),qty:t.qty};});
+    // freeze-set 이후 천일 관련 트랜잭션 반영 (move-in/out, out(천일), adjust(천일))
     const minD=Object.values(latest).map(t=>t.date).sort()[0];
-    sorted.filter(t=>t.date>=minD&&(t.type==='move-in'||t.type==='move-out'||(t.type==='out'&&t.loc==='천일')||(t.type==='adjust'&&t.loc==='천일'))).forEach(t=>applyTx(t,sI,fI));
+    sorted.filter(t=>t.date>minD&&(
+      t.type==='move-in'||
+      t.type==='move-out'||
+      (t.type==='out'&&t.loc==='천일')||
+      (t.type==='adjust'&&t.loc==='천일')
+    )).forEach(t=>applyTx(t,sI,fI));
   }
   const result={};
   // 매핑 DB 기준으로 제품명→규격/카테고리 lookup 함수

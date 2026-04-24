@@ -743,20 +743,26 @@ function buildAt(uptoDate){
           .forEach(t=>applyTx(t,sI,fI));
   }
 
-  // ── 천일냉동: 가장 최근 freeze-set 기준으로 초기화 후 이후 트랜잭션 반영 ──
-  const frzSets=sorted.filter(t=>t.type==='freeze-set');
+  // ── 천일냉동: freeze-set 또는 adjust(천일) 중 제품별 가장 최근값으로 초기화 ──
+  const frzSets=sorted.filter(t=>t.type==='freeze-set'||(t.type==='adjust'&&t.loc==='천일'));
   if(frzSets.length){
-    // 제품별 최신 freeze-set만 사용
+    // 제품별 최신 기준값 선택 (freeze-set과 adjust 중 더 최근 것)
     const latest={};
-    frzSets.forEach(t=>{const k=kk(t);if(!latest[k]||t.date>=latest[k].date)latest[k]=t;});
-    Object.values(latest).forEach(t=>{fI[kk(t)]={...baseObj(t),qty:t.qty};});
-    // freeze-set 이후 천일 관련 트랜잭션 반영 (move-in/out, out(천일), adjust(천일))
+    frzSets.forEach(t=>{
+      const k=t.product+'||'+t.spec; // exp 무시하고 제품+규격 기준
+      if(!latest[k]||t.date>=latest[k].date) latest[k]=t;
+    });
+    // 최신 기준값으로 fI 초기화
+    Object.values(latest).forEach(t=>{
+      const k2=kk(t);
+      fI[k2]={...baseObj(t),qty:t.qty};
+    });
+    // 기준값 날짜 이후 천일 이동/출고 반영
     const minD=Object.values(latest).map(t=>t.date).sort()[0];
     sorted.filter(t=>t.date>minD&&(
       t.type==='move-in'||
       t.type==='move-out'||
-      (t.type==='out'&&t.loc==='천일')||
-      (t.type==='adjust'&&t.loc==='천일')
+      (t.type==='out'&&t.loc==='천일')
     )).forEach(t=>applyTx(t,sI,fI));
   }
   const result={};

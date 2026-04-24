@@ -743,7 +743,7 @@ function buildAt(uptoDate){
     frzSets.forEach(t=>{const k=kk(t);if(!latest[k]||t.date>=latest[k].date)latest[k]=t;});
     Object.values(latest).forEach(t=>{fI[kk(t)]={...baseObj(t),qty:t.qty};});
     const minD=Object.values(latest).map(t=>t.date).sort()[0];
-    sorted.filter(t=>t.date>=minD&&(t.type==='move-in'||t.type==='move-out'||(t.type==='out'&&t.loc==='천일'))).forEach(t=>applyTx(t,sI,fI));
+    sorted.filter(t=>t.date>=minD&&(t.type==='move-in'||t.type==='move-out'||(t.type==='out'&&t.loc==='천일')||(t.type==='adjust'&&t.loc==='천일'))).forEach(t=>applyTx(t,sI,fI));
   }
   const result={};
   // 매핑 DB 기준으로 제품명→규격/카테고리 lookup 함수

@@ -269,6 +269,7 @@ function buildInventory(){
   function kk(t){return t.product+'||'+t.spec+'||'+(t.exp||'');}
   function base(t){return{product:t.product,spec:t.spec,cat:t.cat,exp:t.exp||'',qty:0};}
 
+  // ── 자사 창고: 최신 스냅샷 기준 초기화 ──
   const snaps=sorted.filter(t=>t.type==='snapshot');
   if(snaps.length){
     const latD=[...new Set(snaps.map(t=>t.date))].sort().pop();
@@ -277,14 +278,30 @@ function buildInventory(){
       const k=kk(t);
       if(t.type==='move-in'){if(!fI[k])fI[k]=base(t);fI[k].qty-=t.qty;if(!sI[k])sI[k]=base(t);sI[k].qty+=t.qty;}
       else if(t.type==='move-out'){if(!sI[k])sI[k]=base(t);sI[k].qty-=t.qty;if(!fI[k])fI[k]=base(t);fI[k].qty+=t.qty;}
-      else if(t.type==='adjust'){if(t.loc==='천일'){if(!fI[k])fI[k]=base(t);fI[k].qty=t.qty;}else{if(!sI[k])sI[k]=base(t);sI[k].qty=t.qty;}}
+      else if(t.type==='adjust'&&t.loc!=='천일'){if(!sI[k])sI[k]=base(t);sI[k].qty=t.qty;}
     });
   }
-  const frzSets=sorted.filter(t=>t.type==='freeze-set');
+  // ── 천일냉동: freeze-set 또는 adjust(천일) 중 제품별 최신값으로 초기화 ──
+  const frzSets=sorted.filter(t=>t.type==='freeze-set'||(t.type==='adjust'&&t.loc==='천일'));
   if(frzSets.length){
     const latest={};
-    frzSets.forEach(t=>{const k=kk(t);if(!latest[k]||t.date>=latest[k].date)latest[k]=t;});
+    frzSets.forEach(t=>{
+      const k=t.product+'||'+t.spec;
+      if(!latest[k]||t.date>=latest[k].date) latest[k]=t;
+    });
     Object.values(latest).forEach(t=>{fI[kk(t)]={...base(t),qty:t.qty};});
+    // 기준값 날짜 이후 천일 이동/출고 반영
+    const minD=Object.values(latest).map(t=>t.date).sort()[0];
+    sorted.filter(t=>t.date>minD&&(
+      t.type==='move-in'||
+      t.type==='move-out'||
+      (t.type==='out'&&t.loc==='천일')
+    )).forEach(t=>{
+      const k=kk(t);
+      if(t.type==='move-in'){if(!fI[k])fI[k]=base(t);fI[k].qty-=t.qty;if(!sI[k])sI[k]=base(t);sI[k].qty+=t.qty;}
+      else if(t.type==='move-out'){if(!sI[k])sI[k]=base(t);sI[k].qty-=t.qty;if(!fI[k])fI[k]=base(t);fI[k].qty+=t.qty;}
+      else if(t.type==='out'&&t.loc==='천일'){if(!fI[k])fI[k]=base(t);fI[k].qty-=t.qty;}
+    });
   }
 
   const result={};

@@ -259,11 +259,8 @@ tr:hover td { background: #faf9f7; }
           </select>
           <select id="sb-cat">
             <option value="">전체 원료</option>
-            <option value="두부용 대두">두부용 대두</option>
-            <option value="응고제">응고제</option>
-            <option value="소포제">소포제</option>
-            <option value="부원료">부원료</option>
-            <option value="후라이드 전용">후라이드 전용</option>
+            <option value="결두부용">결두부용 원재료</option>
+            <option value="후라이드용">후라이드용 원재료</option>
           </select>
           <button class="btn btn-sm" id="btn-search">조회</button>
           <button class="btn btn-sm" id="btn-export">엑셀 내보내기</button>
@@ -397,17 +394,27 @@ async function loadTx(year, month, cat) {
   const y = parseInt(year), m = parseInt(month);
   const start = `${y}-${String(m).padStart(2,'0')}-01`;
   const end   = new Date(y, m, 0).toISOString().slice(0,10);
+  const 결두부용cats = ['두부용 대두','응고제','소포제','부원료'];
+  const 후라이드용cats = ['후라이드 전용'];
   TX_DATA = ALL_TX.filter(tx => {
     if (!tx.날짜) return false;
     if (tx.날짜 < start || tx.날짜 > end) return false;
-    if (cat && tx.카테고리 !== cat) return false;
+    if (cat === '결두부용' && !결두부용cats.includes(tx.카테고리)) return false;
+    if (cat === '후라이드용' && !후라이드용cats.includes(tx.카테고리)) return false;
     return true;
   });
 }
 
 // buildSuBulBu → core.js의 buildRawLedger 위임
+// cat: '' | '결두부용' | '후라이드용'
 function buildSuBulBu(year, month, cat) {
-  return buildRawLedger(MASTER, ALL_TX, year, month, cat);
+  // 카테고리 그룹을 실제 카테고리 목록으로 변환
+  const 결두부용cats = ['두부용 대두','응고제','소포제','부원료'];
+  const 후라이드용cats = ['후라이드 전용'];
+  let filteredMaster = MASTER;
+  if (cat === '결두부용')   filteredMaster = MASTER.filter(r => 결두부용cats.includes(r.카테고리));
+  if (cat === '후라이드용') filteredMaster = MASTER.filter(r => 후라이드용cats.includes(r.카테고리));
+  return buildRawLedger(filteredMaster, ALL_TX, year, month, '');
 }
 
 // ============================================================
@@ -480,34 +487,46 @@ function renderStock() {
   document.getElementById('s-minus').textContent = minusList.length;
   document.getElementById('s-tx').textContent    = TX_DATA.length;
 
-  // 카테고리별 테이블
-  const cats = ['두부용 대두','응고제','소포제','부원료','후라이드 전용'];
+  // 결두부용 / 후라이드용 2개 섹션으로 분리
+  const sections = [
+    { label: '결두부용 원재료', cats: ['두부용 대두','응고제','소포제','부원료'] },
+    { label: '후라이드용 원재료', cats: ['후라이드 전용'] },
+  ];
   let html = '';
 
-  for (const cat of cats) {
-    const items = MASTER.filter(r => r.카테고리 === cat);
-    if (!items.length) continue;
-    html += `<p class="sec-label">${cat}</p>`;
-    html += '<div class="card" style="margin-bottom:12px"><table>';
+  for (const sec of sections) {
+    // 해당 섹션 원료 중 재고 있는 것만 (재고 0 이하 포함, 단 아예 데이터 없는 건 제외)
+    const items = MASTER.filter(r =>
+      sec.cats.includes(r.카테고리) &&
+      (stockMap[r.원료명] !== 0 || r.안전재고_kg > 0)  // 재고 0이어도 안전재고 설정된 건 표시
+    );
+    // 재고 있는 것만 (0이면 숨김, 단 마이너스는 표시)
+    const visibleItems = items.filter(r => (stockMap[r.원료명] ?? 0) !== 0);
+    if (!visibleItems.length) continue;
+
+    html += `<p class="sec-label">${sec.label}</p>`;
+    html += '<div class="card" style="margin-bottom:14px"><table>';
+    const hasBag = visibleItems.some(r => r.포대당kg);
     html += '<thead><tr><th style="width:200px">원료명</th>';
-    const hasBag = items.some(r => r.포대당kg);
     if (hasBag) html += '<th class="num">현재고 (kg)</th><th class="num">포대수</th>';
     else html += '<th class="num">현재고 (kg)</th>';
     html += '<th class="num">안전재고</th><th>상태</th></tr></thead><tbody>';
 
-    for (const r of items) {
+    for (const r of visibleItems) {
       const stock = stockMap[r.원료명] ?? 0;
       const safe  = r.안전재고_kg;
       let status, pillClass;
-      if (stock < 0) { status='마이너스'; pillClass='pill-danger'; }
-      else if (stock < safe) { status='주의'; pillClass='pill-warn'; }
-      else { status='정상'; pillClass='pill-ok'; }
+      if (stock < 0)      { status='마이너스'; pillClass='pill-danger'; }
+      else if (stock < safe) { status='주의';   pillClass='pill-warn'; }
+      else                { status='정상';     pillClass='pill-ok'; }
 
       const stockColor = stock < 0 ? 'color:var(--red);font-weight:600' : '';
       const bags = r.포대당kg ? Math.floor(stock / r.포대당kg) : null;
 
       html += `<tr style="${stock<0?'background:var(--red-bg)':stock<safe?'background:#fef9f2':''}">`;
-      html += `<td>${r.원료명}${r.품목코드 ? ' <span class="muted">('+r.품목코드+')</span>':''}${r.원산지?' <span class="muted">'+r.원산지+'</span>':''}</td>`;
+      html += `<td>${r.원료명}`;
+      if (r.품목코드) html += ` <span class="muted">(${r.품목코드})</span>`;
+      html += `</td>`;
       html += `<td class="num" style="${stockColor}">${stock.toLocaleString('ko-KR',{minimumFractionDigits:0,maximumFractionDigits:3})}</td>`;
       if (hasBag) html += `<td class="num muted">${bags !== null ? bags+'포' : '—'}</td>`;
       html += `<td class="num muted">${safe}kg</td>`;
@@ -517,7 +536,7 @@ function renderStock() {
     html += '</tbody></table></div>';
   }
 
-  document.getElementById('stock-body').innerHTML = html;
+  document.getElementById('stock-body').innerHTML = html || '<div class="state-box">재고 있는 원료가 없습니다</div>';
 }
 
 // ============================================================

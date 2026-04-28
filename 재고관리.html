@@ -41,6 +41,7 @@ input:focus,select:focus{border-color:#1a1a1a}
 .tag-식당용{background:#f6ffed;color:#389e0d}
 .tag-통신판매용{background:#e6f4ff;color:#0958d9}
 .tag-기타{background:#f5f5f5;color:#595959}
+.tag-sample{background:#fffbe6;color:#ad4e00}
 .chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:100px;border:1px solid #e8e8e8;background:#fafafa}
 .flex{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .flex-between{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
@@ -87,6 +88,7 @@ tr:hover td{background:#fafafa}
 .type-btn.t-move-in.active{background:#e6f4ff;border-color:#1677ff;color:#0958d9}
 .type-btn.t-move-out.active{background:#f9f0ff;border-color:#9254de;color:#531dab}
 .type-btn.t-adjust.active{background:#fffbe6;border-color:#faad14;color:#d46b08}
+.type-btn.t-sample.active{background:#fffbe6;border-color:#fa8c16;color:#ad4e00}
 .move-note{font-size:12px;color:#555;padding:8px 12px;background:#fafafa;border-radius:8px;margin-bottom:12px;border:1px solid #f0f0f0}
 .compare-bar{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fafafa;border-radius:10px;margin-bottom:14px;flex-wrap:wrap;border:1px solid #f0f0f0}
 .compare-label{font-size:12px;font-weight:500;color:#888;white-space:nowrap}
@@ -193,12 +195,13 @@ tr:hover td{background:#fafafa}
     <!-- 입출고 -->
     <div id="tab-transaction" class="section">
       <h2>입출고 / 이동 입력</h2>
-      <div class="tx-type-group">
+      <div class="tx-type-group" style="grid-template-columns:repeat(6,1fr)">
         <button class="type-btn t-in active" id="tbtn-in" onclick="setTxType('in')">생산 기록<br><span style="font-size:10px">재고 미반영</span></button>
         <button class="type-btn t-out" id="tbtn-out" onclick="setTxType('out')">출고 기록<br><span style="font-size:10px">재고 미반영</span></button>
         <button class="type-btn t-move-in" id="tbtn-move-in" onclick="setTxType('move-in')">천일 → 자사<br><span style="font-size:10px">창고 이동</span></button>
         <button class="type-btn t-move-out" id="tbtn-move-out" onclick="setTxType('move-out')">자사 → 천일<br><span style="font-size:10px">창고 이동</span></button>
         <button class="type-btn t-adjust" id="tbtn-adjust" onclick="setTxType('adjust')">재고 조정<br><span style="font-size:10px">수량 직접 설정</span></button>
+        <button class="type-btn t-sample" id="tbtn-sample" onclick="setTxType('sample')">샘플<br><span style="font-size:10px">재고 미반영</span></button>
       </div>
       <div id="moveNote" style="display:none" class="move-note"></div>
       <div class="form-row form-row-3">
@@ -229,8 +232,14 @@ tr:hover td{background:#fafafa}
             <option value="기타">기타</option>
           </select>
           <button class="btn btn-sm" onclick="loadData().then(()=>renderInventory())">🔄 새로고침</button>
+          <button class="btn btn-sm" onclick="toggleSamplePanel()">🧪 샘플 이력</button>
           <button class="btn btn-sm" onclick="exportCSV()">CSV 내보내기</button>
         </div>
+      </div>
+      <!-- 샘플 이력 패널 (기본 숨김) -->
+      <div id="samplePanel" style="display:none;margin-bottom:14px;background:#fffbe6;border:1px solid #ffe58f;border-radius:10px;padding:14px">
+        <div style="font-size:13px;font-weight:600;color:#ad4e00;margin-bottom:10px">🧪 샘플 기록 이력</div>
+        <div id="sampleList" style="max-height:220px;overflow-y:auto;font-size:12px"></div>
       </div>
       <div class="stats-grid" id="statsGrid"></div>
       <div class="table-wrap">
@@ -323,6 +332,7 @@ tr:hover td{background:#fafafa}
             <option value="move-out">자사→천일</option>
             <option value="adjust">재고 조정</option>
             <option value="freeze-set">천일 갱신</option>
+            <option value="sample">샘플</option>
           </select>
           <button class="btn btn-sm" onclick="loadData().then(()=>renderHistory())">🔄 새로고침</button>
         </div>
@@ -480,6 +490,11 @@ function setTxType(type){
   const lw=document.getElementById('txLocWrap'),note=document.getElementById('moveNote');
   if(type==='move-in'){lw.style.display='none';note.style.display='block';note.innerHTML='천일냉동 → 자사 창고 이동. 천일 −, 자사 + 동시 처리.<br><span style="color:#faad14">※ 소비기한을 입력해야 기존 천일 로트와 정확히 매칭됩니다.</span>';}
   else if(type==='move-out'){lw.style.display='none';note.style.display='block';note.innerHTML='자사 창고 → 천일냉동 이동. 자사 −, 천일 + 동시 처리.<br><span style="color:#faad14">※ 소비기한을 입력해야 기존 천일 로트와 정확히 매칭됩니다.</span>';}
+  else if(type==='sample'){
+    lw.style.display='block';note.style.display='block';
+    note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. <strong>메모란에 실험 내용, 거래처 등을 기록해두세요.</strong>';
+    document.getElementById('txLoc').value='자사';
+  }
   else{lw.style.display='block';note.style.display='none';if(type==='in')document.getElementById('txLoc').value='자사';}
 }
 
@@ -738,6 +753,32 @@ function applyOrder(rows){
   return out;
 }
 
+function toggleSamplePanel(){
+  const p=document.getElementById('samplePanel');
+  const isHidden=p.style.display==='none';
+  p.style.display=isHidden?'block':'none';
+  if(isHidden) renderSampleList();
+}
+
+function renderSampleList(){
+  const samples=cache.transactions
+    .filter(t=>t.type==='sample')
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  const el=document.getElementById('sampleList');
+  if(!samples.length){
+    el.innerHTML='<div style="color:#aaa;padding:8px">샘플 기록이 없습니다.</div>';
+    return;
+  }
+  el.innerHTML=samples.map(s=>`
+    <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid #ffe58f;align-items:start">
+      <span style="color:#888">${s.date}</span>
+      <span><strong>${s.product}</strong> <span style="color:#aaa;font-size:11px">${s.spec||''}</span>
+        ${s.qty?'<span style="margin-left:4px;color:#ad4e00">'+s.qty+'개</span>':''}
+      </span>
+      <span style="color:#555;font-size:11px;word-break:break-all">${s.memo||'—'}</span>
+    </div>`).join('');
+}
+
 function renderInventory(){
   const fc=document.getElementById('invFilterCat').value;
   const rows=sortedRows(buildAt(today),fc);
@@ -959,8 +1000,8 @@ function renderHistory(){
   const prods=[...new Set(cache.transactions.map(t=>t.product))];
   document.getElementById('filterProduct').innerHTML='<option value="">전체 제품</option>'+prods.map(p=>`<option value="${p}" ${p===fp?'selected':''}>${p}</option>`).join('');
   const filtered=cache.transactions.filter(t=>(!fp||t.product===fp)&&(!ft||t.type===ft)).sort((a,b)=>b.date.localeCompare(a.date));
-  const TL={snapshot:'스냅샷',in:'생산입고',out:'출고','move-in':'천일→자사','move-out':'자사→천일',adjust:'조정','freeze-set':'천일갱신'};
-  const TC={snapshot:'tag-freeze',in:'tag-normal',out:'tag-danger','move-in':'tag-freeze','move-out':'tag-move',adjust:'tag-warn','freeze-set':'tag-freeze'};
+  const TL={snapshot:'스냅샷',in:'생산입고',out:'출고','move-in':'천일→자사','move-out':'자사→천일',adjust:'조정','freeze-set':'천일갱신',sample:'샘플'};
+  const TC={snapshot:'tag-freeze',in:'tag-normal',out:'tag-danger','move-in':'tag-freeze','move-out':'tag-move',adjust:'tag-warn','freeze-set':'tag-freeze',sample:'tag-sample'};
   document.getElementById('historyList').innerHTML=!filtered.length
     ?'<div class="empty">이력이 없습니다.</div>'
     :filtered.map(t=>`<div class="hist-item">

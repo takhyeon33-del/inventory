@@ -32,7 +32,7 @@ function calcKg(spec, qty){
 // ── 트랜잭션 적용 ─────────────────────────────────
 // 정책: in/out 은 이력 기록용. 재고는 스냅샷 기준이므로 계산 제외
 function applyTx(t, sI, fI){
-  if(t.type==='in' || t.type==='out') return;
+  if(t.type==='in' || t.type==='out' || t.type==='sample') return;
   const k  = kk(t);
   const eS = ()=>{ if(!sI[k]) sI[k]=baseObj(t); };
   const eF = ()=>{ if(!fI[k]) fI[k]=baseObj(t); };

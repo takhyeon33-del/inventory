@@ -206,7 +206,12 @@ tr:hover td{background:#fafafa}
       <div id="moveNote" style="display:none" class="move-note"></div>
       <div class="form-row form-row-3">
         <div><div class="form-label">날짜</div><input type="date" id="txDate"/></div>
-        <div><div class="form-label">제품</div><select id="txProduct"></select></div>
+        <div>
+          <div class="form-label">제품</div>
+          <select id="txProduct" style="display:block"></select>
+          <input type="text" id="txProductFree" placeholder="실험용 제품명 직접 입력..."
+            style="display:none;margin-top:4px" />
+        </div>
         <div><div class="form-label">수량</div><input type="number" id="txQty" min="1" placeholder="0"/></div>
       </div>
       <div class="form-row form-row-3">
@@ -494,8 +499,17 @@ function setTxType(type){
     lw.style.display='block';note.style.display='block';
     note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. <strong>메모란에 실험 내용, 거래처 등을 기록해두세요.</strong>';
     document.getElementById('txLoc').value='자사';
+    // 샘플 타입: 드롭다운 숨기고 자유 입력창 표시
+    document.getElementById('txProduct').style.display='none';
+    document.getElementById('txProductFree').style.display='block';
   }
-  else{lw.style.display='block';note.style.display='none';if(type==='in')document.getElementById('txLoc').value='자사';}
+  else{
+    lw.style.display='block';note.style.display='none';
+    if(type==='in')document.getElementById('txLoc').value='자사';
+    // 일반 타입: 드롭다운 표시, 자유 입력창 숨김
+    document.getElementById('txProduct').style.display='block';
+    document.getElementById('txProductFree').style.display='none';
+  }
 }
 
 // ── 파싱 ─────────────────────────────────────
@@ -711,10 +725,15 @@ function populateProductSelect(){
 }
 
 async function addTransaction(){
-  const date=document.getElementById('txDate').value,product=document.getElementById('txProduct').value;
+  const date=document.getElementById('txDate').value;
+  const isSample=curTxType==='sample';
+  const product=isSample
+    ? document.getElementById('txProductFree').value.trim()
+    : document.getElementById('txProduct').value;
   const qty=parseInt(document.getElementById('txQty').value),exp=document.getElementById('txExp').value;
   const memo=document.getElementById('txMemo').value,type=curTxType;
-  if(!date||!product||!qty||qty<=0){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">날짜, 제품, 수량을 입력해주세요.</div>';return;}
+  if(!date||!product){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">날짜와 제품명을 입력해주세요.</div>';return;}
+  if(!isSample&&(!qty||qty<=0)){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요.</div>';return;}
   const m=cache.mappings.find(m=>m.name===product)||{spec:'',cat:'기타'};
   const loc=type==='move-in'?'천일→자사':type==='move-out'?'자사→천일':document.getElementById('txLoc').value;
   const t={date,type,product,spec:m.spec,cat:m.cat,qty,loc,exp,memo};
@@ -722,7 +741,9 @@ async function addTransaction(){
   try{
     await saveTx(t);cache.transactions.unshift({...t,id:Date.now()});
     document.getElementById('txAlert').innerHTML='<div class="alert alert-success">✓ 저장되었습니다.</div>';
-    document.getElementById('txQty').value='';document.getElementById('txMemo').value='';
+    document.getElementById('txQty').value='';
+    document.getElementById('txMemo').value='';
+    document.getElementById('txProductFree').value='';
     setTimeout(()=>document.getElementById('txAlert').innerHTML='',2500);
   }catch(e){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">저장 실패: '+e.message+'</div>';}
 }

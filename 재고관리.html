@@ -204,6 +204,18 @@ tr:hover td{background:#fafafa}
         <button class="type-btn t-sample" id="tbtn-sample" onclick="setTxType('sample')">샘플<br><span style="font-size:10px">재고 미반영</span></button>
       </div>
       <div id="moveNote" style="display:none" class="move-note"></div>
+  <!-- 샘플 입고/출고 선택 -->
+  <div id="sampleDirection" style="display:none;margin-bottom:10px">
+    <div class="form-label" style="margin-bottom:6px">샘플 방향</div>
+    <div style="display:flex;gap:10px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:7px 14px;border:1px solid #d9d9d9;border-radius:8px;background:#fff" id="sdir-in-label">
+        <input type="radio" name="sampleDir" id="sdir-in" value="in" checked onchange="updateSampleNote()"> 📥 입고
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:7px 14px;border:1px solid #d9d9d9;border-radius:8px;background:#fff" id="sdir-out-label">
+        <input type="radio" name="sampleDir" id="sdir-out" value="out" onchange="updateSampleNote()"> 📤 출고
+      </label>
+    </div>
+  </div>
       <div class="form-row form-row-3">
         <div><div class="form-label">날짜</div><input type="date" id="txDate"/></div>
         <div>
@@ -496,19 +508,23 @@ function setTxType(type){
   if(type==='move-in'){lw.style.display='none';note.style.display='block';note.innerHTML='천일냉동 → 자사 창고 이동. 천일 −, 자사 + 동시 처리.<br><span style="color:#faad14">※ 소비기한을 입력해야 기존 천일 로트와 정확히 매칭됩니다.</span>';}
   else if(type==='move-out'){lw.style.display='none';note.style.display='block';note.innerHTML='자사 창고 → 천일냉동 이동. 자사 −, 천일 + 동시 처리.<br><span style="color:#faad14">※ 소비기한을 입력해야 기존 천일 로트와 정확히 매칭됩니다.</span>';}
   else if(type==='sample'){
-    lw.style.display='block';note.style.display='block';
-    note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. <strong>출고 수량과 메모란에 실험 내용, 거래처 등을 기록해두세요.</strong>';
+    lw.style.display='block';
+    note.style.display='block';
+    note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. 메모란에 실험 내용, 거래처 등을 기록해두세요.';
     document.getElementById('txLoc').value='자사';
-    // 샘플 타입: 드롭다운 숨기고 자유 입력창 표시
     document.getElementById('txProduct').style.display='none';
     document.getElementById('txProductFree').style.display='block';
+    document.getElementById('sampleDirection').style.display='block';
+    // 입고 기본 선택
+    document.getElementById('sdir-in').checked=true;
+    updateSampleDirStyle();
   }
   else{
     lw.style.display='block';note.style.display='none';
     if(type==='in')document.getElementById('txLoc').value='자사';
-    // 일반 타입: 드롭다운 표시, 자유 입력창 숨김
     document.getElementById('txProduct').style.display='block';
     document.getElementById('txProductFree').style.display='none';
+    document.getElementById('sampleDirection').style.display='none';
   }
 }
 
@@ -730,8 +746,12 @@ async function addTransaction(){
   const product=isSample
     ? document.getElementById('txProductFree').value.trim()
     : document.getElementById('txProduct').value;
+  const sampleDir=isSample ? getSampleDir() : null;
   const qty=parseInt(document.getElementById('txQty').value),exp=document.getElementById('txExp').value;
-  const memo=document.getElementById('txMemo').value,type=curTxType;
+  const memoRaw=document.getElementById('txMemo').value,type=curTxType;
+  const memo=isSample
+    ? (sampleDir==='out' ? '[출고] ' : '[입고] ') + memoRaw
+    : memoRaw;
   if(!date||!product){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">날짜와 제품명을 입력해주세요.</div>';return;}
   if(!qty||qty<=0){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요.</div>';return;}
   const m=cache.mappings.find(m=>m.name===product)||{spec:'',cat:'기타'};
@@ -774,6 +794,29 @@ function applyOrder(rows){
   return out;
 }
 
+function updateSampleNote(){
+  updateSampleDirStyle();
+}
+
+function updateSampleDirStyle(){
+  const isIn = document.getElementById('sdir-in').checked;
+  const inLabel  = document.getElementById('sdir-in-label');
+  const outLabel = document.getElementById('sdir-out-label');
+  if(inLabel && outLabel){
+    inLabel.style.borderColor  = isIn  ? '#52c41a' : '#d9d9d9';
+    inLabel.style.background   = isIn  ? '#f6ffed' : '#fff';
+    inLabel.style.color        = isIn  ? '#389e0d' : '#1a1a1a';
+    outLabel.style.borderColor = !isIn ? '#ff4d4f' : '#d9d9d9';
+    outLabel.style.background  = !isIn ? '#fff1f0' : '#fff';
+    outLabel.style.color       = !isIn ? '#cf1322' : '#1a1a1a';
+  }
+}
+
+function getSampleDir(){
+  const el = document.querySelector('input[name="sampleDir"]:checked');
+  return el ? el.value : 'in';
+}
+
 function toggleSamplePanel(){
   const p=document.getElementById('samplePanel');
   const isHidden=p.style.display==='none';
@@ -799,7 +842,13 @@ function renderSampleList(){
       <span style="color:#888">${s.date}</span>
       <span><strong>${s.product}</strong>${s.spec?'<br><span style="color:#aaa;font-size:10px">'+s.spec+'</span>':''}</span>
       <span style="color:#ad4e00;font-weight:600">${s.qty?s.qty+'개':'—'}</span>
-      <span style="color:#555;font-size:11px;word-break:break-all">${s.memo||''}</span>
+      <span style="color:#555;font-size:11px;word-break:break-all">
+        ${s.memo&&s.memo.startsWith('[출고]')
+          ? '<span style="color:#cf1322;font-weight:500">📤 출고</span> '+s.memo.replace('[출고] ','')
+          : s.memo&&s.memo.startsWith('[입고]')
+            ? '<span style="color:#389e0d;font-weight:500">📥 입고</span> '+s.memo.replace('[입고] ','')
+            : (s.memo||'')}
+      </span>
     </div>`).join('');
 }
 
@@ -830,6 +879,11 @@ function renderInventory(){
       const rk=r.product+'||'+r.spec;
       const st=r.천일>0&&r.자사>0?'혼합':r.천일>0?'냉동':'자사';
       const sc=r.천일>0&&r.자사>0?'tag-move':r.천일>0?'tag-freeze':'tag-normal';
+      // 샘플 재고 여부 확인
+      const hasSample=cache.transactions.some(t=>
+        t.type==='sample' && t.product===r.product &&
+        t.memo && !t.memo.startsWith('[출고]')
+      );
       const rowIdx=rows.indexOf(r);
       const hasLots=r.lots&&r.lots.length>0;
       // 소비기한 중 가장 임박한 것
@@ -848,9 +902,10 @@ function renderInventory(){
         <td>${r.천일>0?'<span class="tag tag-freeze">'+r.천일+'개</span>':'—'}</td>
         <td><strong>${r.자사+r.천일}개</strong></td>
         <td style="color:#555">${kg!==null?kg+'kg':'—'}</td>
-        <td style="display:flex;align-items:center;gap:4px">
+        <td style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="tag ${sc}">${st}</span>
           ${expSt.tag}
+          ${hasSample?'<span class="tag tag-sample" style="font-size:10px">🧪샘플</span>':''}
           ${hasLots?'<span class="lot-arrow" style="color:#bbb;font-size:10px;margin-left:2px">▶</span>':''}
         </td>
       </tr>`;

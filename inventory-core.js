@@ -32,7 +32,7 @@ function calcKg(spec, qty){
 // ── 트랜잭션 적용 ─────────────────────────────────
 // 정책: in/out 은 이력 기록용. 재고는 스냅샷 기준이므로 계산 제외
 function applyTx(t, sI, fI){
-  if(t.type==='in' || t.type==='out' || t.type==='sample') return;
+  if(t.type==='in' || t.type==='out') return;
   const k  = kk(t);
   const eS = ()=>{ if(!sI[k]) sI[k]=baseObj(t); };
   const eF = ()=>{ if(!fI[k]) fI[k]=baseObj(t); };
@@ -41,6 +41,19 @@ function applyTx(t, sI, fI){
   else if(t.type==='adjust')   {
     if(t.loc==='천일'){ eF(); fI[k].qty=t.qty; }
     else              { eS(); sI[k].qty=t.qty; }
+  }
+  else if(t.type==='sample')   {
+    // sample: 메모의 [입고]/[출고] 태그로 방향 구분
+    const isOut = t.memo && t.memo.startsWith('[출고]');
+    if(t.loc==='천일'){
+      eF();
+      if(isOut) fI[k].qty -= t.qty;
+      else      fI[k].qty += t.qty;
+    } else {
+      eS();
+      if(isOut) sI[k].qty -= t.qty;
+      else      sI[k].qty += t.qty;
+    }
   }
 }
 
@@ -71,13 +84,13 @@ function buildInventoryAt(transactions, mappings, uptoDate){
                     && t.type!=='freeze-set'
                     && t.type!=='in'
                     && t.type!=='out')
-          .forEach(t => applyTx(t, sI, fI));
+          .forEach(t => applyTx(t, sI, fI)); // sample 포함됨
   } else {
     sorted.filter(t => t.type!=='snapshot'
                     && t.type!=='freeze-set'
                     && t.type!=='in'
                     && t.type!=='out')
-          .forEach(t => applyTx(t, sI, fI));
+          .forEach(t => applyTx(t, sI, fI)); // sample 포함됨
   }
 
   // ── 천일냉동: freeze-set 또는 adjust(천일) 중 로트별 최신값으로 초기화 ──

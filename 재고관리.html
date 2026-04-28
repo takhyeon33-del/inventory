@@ -497,7 +497,7 @@ function setTxType(type){
   else if(type==='move-out'){lw.style.display='none';note.style.display='block';note.innerHTML='자사 창고 → 천일냉동 이동. 자사 −, 천일 + 동시 처리.<br><span style="color:#faad14">※ 소비기한을 입력해야 기존 천일 로트와 정확히 매칭됩니다.</span>';}
   else if(type==='sample'){
     lw.style.display='block';note.style.display='block';
-    note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. <strong>메모란에 실험 내용, 거래처 등을 기록해두세요.</strong>';
+    note.innerHTML='🧪 샘플 기록 — 재고에 반영되지 않습니다. <strong>출고 수량과 메모란에 실험 내용, 거래처 등을 기록해두세요.</strong>';
     document.getElementById('txLoc').value='자사';
     // 샘플 타입: 드롭다운 숨기고 자유 입력창 표시
     document.getElementById('txProduct').style.display='none';
@@ -733,7 +733,7 @@ async function addTransaction(){
   const qty=parseInt(document.getElementById('txQty').value),exp=document.getElementById('txExp').value;
   const memo=document.getElementById('txMemo').value,type=curTxType;
   if(!date||!product){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">날짜와 제품명을 입력해주세요.</div>';return;}
-  if(!isSample&&(!qty||qty<=0)){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요.</div>';return;}
+  if(!qty||qty<=0){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요.</div>';return;}
   const m=cache.mappings.find(m=>m.name===product)||{spec:'',cat:'기타'};
   const loc=type==='move-in'?'천일→자사':type==='move-out'?'자사→천일':document.getElementById('txLoc').value;
   const t={date,type,product,spec:m.spec,cat:m.cat,qty,loc,exp,memo};
@@ -790,13 +790,16 @@ function renderSampleList(){
     el.innerHTML='<div style="color:#aaa;padding:8px">샘플 기록이 없습니다.</div>';
     return;
   }
-  el.innerHTML=samples.map(s=>`
-    <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid #ffe58f;align-items:start">
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:80px 1fr 60px 1fr;gap:8px;padding:4px 0 6px;border-bottom:2px solid #ffe58f;font-size:11px;color:#aaa;font-weight:500">
+      <span>날짜</span><span>제품명</span><span>수량</span><span>메모 (실험내용/거래처)</span>
+    </div>` +
+  samples.map(s=>`
+    <div style="display:grid;grid-template-columns:80px 1fr 60px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid #ffe58f;align-items:start">
       <span style="color:#888">${s.date}</span>
-      <span><strong>${s.product}</strong> <span style="color:#aaa;font-size:11px">${s.spec||''}</span>
-        ${s.qty?'<span style="margin-left:4px;color:#ad4e00">'+s.qty+'개</span>':''}
-      </span>
-      <span style="color:#555;font-size:11px;word-break:break-all">${s.memo||'—'}</span>
+      <span><strong>${s.product}</strong>${s.spec?'<br><span style="color:#aaa;font-size:10px">'+s.spec+'</span>':''}</span>
+      <span style="color:#ad4e00;font-weight:600">${s.qty?s.qty+'개':'—'}</span>
+      <span style="color:#555;font-size:11px;word-break:break-all">${s.memo||''}</span>
     </div>`).join('');
 }
 

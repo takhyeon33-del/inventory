@@ -78,19 +78,24 @@ function buildInventoryAt(transactions, mappings, uptoDate){
     // 최신 스냅샷으로 자사 초기화
     snaps.filter(t => t.date===latD)
          .forEach(t => { const k=kk(t); if(!sI[k]) sI[k]=baseObj(t); sI[k].qty+=t.qty; });
-    // 스냅샷 이후 이동/조정 반영 (in/out/freeze-set 제외)
-    sorted.filter(t => t.date>=latD
+    // 스냅샷 이후 이동/조정 반영 — 같은 날 순서 보장: move 먼저, adjust 나중
+    // adjust가 move보다 먼저 처리되면 move가 덮어쓰는 문제 방지
+    const afterSnap = sorted.filter(t => t.date>=latD
                     && t.type!=='snapshot'
                     && t.type!=='freeze-set'
                     && t.type!=='in'
-                    && t.type!=='out')
-          .forEach(t => applyTx(t, sI, fI)); // sample 포함됨
+                    && t.type!=='out');
+    // 1단계: adjust 제외하고 먼저 처리 (이동, sample 등)
+    afterSnap.filter(t => t.type!=='adjust').forEach(t => applyTx(t, sI, fI));
+    // 2단계: adjust 나중에 처리 (최종 수량으로 덮어쓰기)
+    afterSnap.filter(t => t.type==='adjust').forEach(t => applyTx(t, sI, fI));
   } else {
-    sorted.filter(t => t.type!=='snapshot'
+    const allTx = sorted.filter(t => t.type!=='snapshot'
                     && t.type!=='freeze-set'
                     && t.type!=='in'
-                    && t.type!=='out')
-          .forEach(t => applyTx(t, sI, fI)); // sample 포함됨
+                    && t.type!=='out');
+    allTx.filter(t => t.type!=='adjust').forEach(t => applyTx(t, sI, fI));
+    allTx.filter(t => t.type==='adjust').forEach(t => applyTx(t, sI, fI));
   }
 
   // ── 천일냉동: freeze-set 또는 adjust(천일) 중 로트별 최신값으로 초기화 ──

@@ -152,7 +152,7 @@ tbody tr.main-row:hover td{background:#fafafa;cursor:pointer}
   </div>
 </div>
 
-<script src="./inventory-core.js?v=2"></script>
+<script src="./inventory-core.js?v=3"></script>
 <script>
 const TX_DB  = '4950b260843546dc987252e339176677';
 const MAP_DB = '74665fa3444b42b583885d654a9aa587';
@@ -235,10 +235,13 @@ async function loadAndRender(){
   sync('loading','동기화 중...');
   try{
     const txP=await nQuery(TX_DB,[{property:'날짜',direction:'descending'}]);
-    cache.transactions=txP.map(p=>({
+    cache.transactions=txP.map((p,i)=>({
+      id:p.id,
       date:gp(p,'날짜'),type:gp(p,'구분'),product:gp(p,'제품명'),
       spec:gp(p,'규격'),cat:gp(p,'카테고리'),qty:gp(p,'수량'),
-      loc:gp(p,'위치'),exp:gp(p,'소비기한'),
+      loc:gp(p,'위치'),exp:gp(p,'소비기한'),memo:gp(p,'메모'),
+      createdTime:p.created_time||'',
+      _seq:i
     })).filter(t=>t.date&&t.product);
 
     const mP=await nQuery(MAP_DB);

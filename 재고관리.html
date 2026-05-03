@@ -392,7 +392,7 @@ tr:hover td{background:#fafafa}
 <!-- 토큰 재설정 -->
 <button onclick="resetToken()" style="position:fixed;bottom:12px;right:12px;font-size:10px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#bbb;cursor:pointer;opacity:0.6">토큰 재설정</button>
 
-<script src="./inventory-core.js?v=2"></script>
+<script src="./inventory-core.js?v=3"></script>
 <script>
 // ── 설정 ──────────────────────────────────────
 let TOKEN = localStorage.getItem('notion_mgmt_token') || '';
@@ -436,11 +436,13 @@ async function nQuery(dbId, sorts) {
 }
 function gp(page, name) {
   const p=page.properties[name]; if(!p)return'';
-  if(p.type==='title')    return p.title.map(t=>t.plain_text).join('');
-  if(p.type==='rich_text')return p.rich_text.map(t=>t.plain_text).join('');
-  if(p.type==='select')   return p.select?.name||'';
-  if(p.type==='number')   return p.number||0;
-  if(p.type==='date')     return p.date?.start||'';
+  if(p.type==='title')       return p.title.map(t=>t.plain_text).join('');
+  if(p.type==='rich_text')   return p.rich_text.map(t=>t.plain_text).join('');
+  if(p.type==='select')      return p.select?.name||'';
+  if(p.type==='number')      return p.number||0;
+  if(p.type==='date')        return p.date?.start||'';
+  if(p.type==='created_time')return p.created_time||'';
+  if(p.type==='last_edited_time')return p.last_edited_time||'';
   return'';
 }
 function sync(status,msg){
@@ -452,10 +454,13 @@ async function loadData() {
   sync('loading','동기화 중...');
   try {
     const txP = await nQuery(TX_DB,[{property:'날짜',direction:'descending'}]);
-    cache.transactions = txP.map(p=>({
+    cache.transactions = txP.map((p,i)=>({
       id:p.id, date:gp(p,'날짜'), type:gp(p,'구분'), product:gp(p,'제품명'),
       spec:gp(p,'규격'), cat:gp(p,'카테고리'), qty:gp(p,'수량'),
       loc:gp(p,'위치'), exp:gp(p,'소비기한'), memo:gp(p,'메모'),
+      // 같은 날짜 안에서 snapshot / move / adjust 순서를 정확히 계산하기 위한 값
+      createdTime:p.created_time || gp(p,'등록시각') || '',
+      _seq:i,
     })).filter(t=>t.date&&t.product);
 
     const mP = await nQuery(MAP_DB);
@@ -722,8 +727,13 @@ async function confirmSnapshot(){
         product:item.mappedName,spec:item.spec,cat:item.cat,
         qty:item.qty,loc:item.loc,exp:item.exp,
         memo:'카카오 스냅샷 ('+item.product+')'};
-      await saveTx(t);
-      cache.transactions.unshift({...t,id:Date.now()+Math.random()});
+      const saved = await saveTx(t);
+      cache.transactions.unshift({
+        ...t,
+        id:saved.id || Date.now()+Math.random(),
+        createdTime:saved.created_time || new Date().toISOString(),
+        _seq:Date.now()+Math.random()
+      });
     }
     const s=items.filter(i=>i.loc==='자사').length,f=items.filter(i=>i.loc==='천일').length;
     document.getElementById('parsedPreview').style.display='none';
@@ -759,7 +769,13 @@ async function addTransaction(){
   const t={date,type,product,spec:m.spec,cat:m.cat,qty,loc,exp,memo};
   document.getElementById('txAlert').innerHTML='<div class="alert alert-info">저장 중...</div>';
   try{
-    await saveTx(t);cache.transactions.unshift({...t,id:Date.now()});
+    const saved = await saveTx(t);
+    cache.transactions.unshift({
+      ...t,
+      id:saved.id || Date.now(),
+      createdTime:saved.created_time || new Date().toISOString(),
+      _seq:Date.now()+Math.random()
+    });
     document.getElementById('txAlert').innerHTML='<div class="alert alert-success">✓ 저장되었습니다.</div>';
     document.getElementById('txQty').value='';
     document.getElementById('txMemo').value='';

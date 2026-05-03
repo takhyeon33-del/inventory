@@ -224,7 +224,7 @@ tr:hover td{background:#fafafa}
           <input type="text" id="txProductFree" placeholder="실험용 제품명 직접 입력..."
             style="display:none;margin-top:4px" />
         </div>
-        <div><div class="form-label">수량</div><input type="number" id="txQty" min="1" placeholder="0"/></div>
+        <div><div class="form-label">수량</div><input type="number" id="txQty" min="0" placeholder="0"/></div>
       </div>
       <div class="form-row form-row-3">
         <div id="txLocWrap"><div class="form-label">위치</div>
@@ -392,7 +392,7 @@ tr:hover td{background:#fafafa}
 <!-- 토큰 재설정 -->
 <button onclick="resetToken()" style="position:fixed;bottom:12px;right:12px;font-size:10px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#bbb;cursor:pointer;opacity:0.6">토큰 재설정</button>
 
-<script src="./inventory-core.js?v=3"></script>
+<script src="./inventory-core.js?v=4"></script>
 <script>
 // ── 설정 ──────────────────────────────────────
 let TOKEN = localStorage.getItem('notion_mgmt_token') || '';
@@ -523,6 +523,14 @@ function setTxType(type){
     // 입고 기본 선택
     document.getElementById('sdir-in').checked=true;
     updateSampleDirStyle();
+  }
+  else if(type==='adjust'){
+    lw.style.display='block';
+    note.style.display='block';
+    note.innerHTML='재고 조정은 선택한 위치의 최종 수량으로 덮어씁니다.<br><span style="color:#faad14">※ 자사에 이미 반영된 천일 재고를 빼려면 위치를 천일, 수량을 0으로 저장하세요.</span>';
+    document.getElementById('txProduct').style.display='block';
+    document.getElementById('txProductFree').style.display='none';
+    document.getElementById('sampleDirection').style.display='none';
   }
   else{
     lw.style.display='block';note.style.display='none';
@@ -757,13 +765,17 @@ async function addTransaction(){
     ? document.getElementById('txProductFree').value.trim()
     : document.getElementById('txProduct').value;
   const sampleDir=isSample ? getSampleDir() : null;
-  const qty=parseInt(document.getElementById('txQty').value),exp=document.getElementById('txExp').value;
+  const qtyRaw=document.getElementById('txQty').value;
+  const qty=qtyRaw===''?NaN:parseInt(qtyRaw,10),exp=document.getElementById('txExp').value;
   const memoRaw=document.getElementById('txMemo').value,type=curTxType;
   const memo=isSample
     ? (sampleDir==='out' ? '[출고] ' : '[입고] ') + memoRaw
     : memoRaw;
   if(!date||!product){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">날짜와 제품명을 입력해주세요.</div>';return;}
-  if(!qty||qty<=0){document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요.</div>';return;}
+  if(Number.isNaN(qty) || qty<0 || (type!=='adjust' && qty<=0)){
+    document.getElementById('txAlert').innerHTML='<div class="alert alert-error">수량을 입력해주세요. 재고 조정은 0개 입력이 가능합니다.</div>';
+    return;
+  }
   const m=cache.mappings.find(m=>m.name===product)||{spec:'',cat:'기타'};
   const loc=type==='move-in'?'천일→자사':type==='move-out'?'자사→천일':document.getElementById('txLoc').value;
   const t={date,type,product,spec:m.spec,cat:m.cat,qty,loc,exp,memo};
